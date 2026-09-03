@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Polaris LMS PDF Downloader",
+  "version": "1.0",
+  "permissions": [
+    "downloads"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://lms.polariscampus.com/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
+}
