@@ -10,11 +10,15 @@ A lightweight Chrome Extension that adds a native download button directly to th
 
 ## Screenshots
 
-<!-- REPLACE THIS LINE WITH A SCREENSHOT OF THE BUTTON ON THE LMS -->
-![Screenshot of the button on the LMS](assets/download-button-on-lms.png)
+**Injected download button on the LMS:**
 
-<!-- REPLACE THIS LINE WITH A SCREENSHOT OF A DOWNLOADED FILE -->
-![Screenshot showing the clean downloaded filename in the downloads bar](assets/download-complete.png)
+<img width="1900" height="866" alt="Screenshot 2026-09-03 155320" src="https://github.com/user-attachments/assets/79dcd7ca-e185-47fc-beae-77fd911c10d5" />
+<br><br>
+
+**Clean downloaded filename in the downloads bar:**
+
+<img width="1853" height="465" alt="Screenshot 2026-09-03 155335" src="https://github.com/user-attachments/assets/df9ae78e-111c-4bc9-aea7-ddcbd7072e60" />
+<br><br>
 
 ## How to Install
 
@@ -32,10 +36,16 @@ This extension is shared directly via GitHub, you can easily install it on your 
 3. **Enable Developer Mode**
    - In the top right corner of the Extensions page, toggle the **Developer mode** switch so it is turned **ON**.
 
+   **See the screenshot below:**
+
+<img width="1847" height="720" alt="image" src="https://github.com/user-attachments/assets/69c9ab0c-7793-4629-8a5f-a8d8042cdcc3" />
+
 4. **Load the Extension**
    - Click the **Load unpacked** button that appears in the top left.
    - Select the unzipped folder you downloaded in Step 1 (Make sure you select the specific folder that contains the `manifest.json` file).
 
-**That's it!** The extension is now installed. Just navigate to your Polaris LMS, open a PDF, and click the new orange "Download PDF" button at the bottom right. Download the notes and enjoyy.
+**That's it!** The extension is now installed. Just navigate to your Polaris LMS, open a PDF, and click the new orange "Download PDF" button at the bottom right. Download the notes and enjoy.
+
+
 
 
