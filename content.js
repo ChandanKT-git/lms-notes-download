@@ -119,3 +119,14 @@ observer.observe(document.body, {
 });
 
 checkForPdf();
+
+// Listen for download requests from injected.js (MAIN world) and forward to background script
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.source === 'POLARIS_DOWNLOADER' && event.data.action === 'download') {
+        chrome.runtime.sendMessage({
+            action: 'download',
+            url: event.data.url,
+            filename: event.data.filename
+        });
+    }
+});
