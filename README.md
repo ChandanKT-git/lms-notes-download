@@ -1,16 +1,24 @@
 # Polaris LMS PDF Downloader
 
-A lightweight Chrome Extension that adds a native download button directly to the Polaris LMS interface, allowing you to easily download PDF notes and materials with a single click.
+A lightweight Chrome Extension that adds native download capabilities directly to the Polaris LMS interface, allowing you to easily download PDF notes and study materials with a single click.
 
 ## Features
-- **One-Click Downloads**: Downloads PDFs directly to your computer.
-- **Clean UI**: Seamlessly integrates into the Polaris LMS with brand-matched styling.
-- **Smart Filenames**: Automatically strips out messy system IDs (like `1788371440191_`) from the filenames so your downloaded notes are clean and readable.
+- **Direct List Downloads**: Download any note directly from the module list with a single click—no need to open each note one by one.
+- **Bulk "Download All"**: Download every note in the active module sequentially with a single click.
+- **Smart Filenames**: Automatically strips out messy system IDs/timestamps (e.g. `1786663546889_`) so your downloaded notes are clean and readable.
+- **Viewer Integration**: Retains the floating one-click download button when viewing individual PDFs directly inside the LMS viewer.
+- **Clean UI**: Seamlessly integrates into the Polaris LMS with native brand-matched styling and dark mode support.
 - **Highly Optimized**: Runs efficiently in the background without slowing down your browser.
 
 ## Screenshots
 
-**Injected download button on the LMS:**
+**Direct Inline & Bulk "Download All" on Module View:**
+
+<!-- REPLACE THIS LINE WITH YOUR NEW SCREENSHOT -->
+*(Add screenshot of the new inline Download and Download All buttons here)*
+<br><br>
+
+**Injected download button on single PDF viewer:**
 
 <img width="1900" height="866" alt="Screenshot 2026-09-03 155320" src="https://github.com/user-attachments/assets/79dcd7ca-e185-47fc-beae-77fd911c10d5" />
 <br><br>
@@ -22,7 +30,7 @@ A lightweight Chrome Extension that adds a native download button directly to th
 
 ## How to Install
 
-This extension is shared directly via GitHub, you can easily install it on your browser using "Developer Mode". It only takes 30 seconds:
+This extension is shared directly via GitHub. You can easily install it on your browser using "Developer Mode". It only takes 30 seconds:
 
 1. **Download the Code**
    - Click the green **Code** button at the top right of this repository.
@@ -44,8 +52,7 @@ This extension is shared directly via GitHub, you can easily install it on your 
    - Click the **Load unpacked** button that appears in the top left.
    - Select the unzipped folder you downloaded in Step 1 (Make sure you select the specific folder that contains the `manifest.json` file).
 
-**That's it!** The extension is now installed. Just navigate to your Polaris LMS, open a PDF, and click the new orange "Download PDF" button at the bottom right. Download the notes and enjoy.
-
-
-
-
+**That's it!** The extension is now active. Navigate to any subject or module on Polaris LMS:
+- Click **Download** next to any note card to save it instantly.
+- Or click **Download All (X)** at the top header to download all module notes at once.
+- Opening an individual PDF will also show the floating **Download PDF** button at the bottom right.
