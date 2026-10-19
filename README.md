@@ -13,9 +13,8 @@ A lightweight Chrome Extension that adds native download capabilities directly t
 ## Screenshots
 
 **Direct Inline & Bulk "Download All" on Module View:**
+<img width="1870" height="903" alt="image" src="https://github.com/user-attachments/assets/6d1d185d-d543-433d-bbb7-bcf41edd2b6d" />
 
-<!-- REPLACE THIS LINE WITH YOUR NEW SCREENSHOT -->
-*(Add screenshot of the new inline Download and Download All buttons here)*
 <br><br>
 
 **Injected download button on single PDF viewer:**
