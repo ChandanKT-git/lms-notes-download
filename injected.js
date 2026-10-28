@@ -57,6 +57,33 @@
                 opacity: 0.75;
                 cursor: not-allowed;
             }
+            #polaris-merge-all-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                background-color: #f99707;
+                color: #ffffff;
+                font-family: inherit;
+                font-size: 12px;
+                font-weight: 700;
+                padding: 8px 14px;
+                border-radius: 12px;
+                border: none;
+                cursor: pointer;
+                margin-left: 8px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                transition: all 0.15s ease-in-out;
+            }
+            #polaris-merge-all-btn:hover {
+                background-color: #e08606;
+            }
+            #polaris-merge-all-btn:active {
+                transform: scale(0.96);
+            }
+            #polaris-merge-all-btn:disabled {
+                opacity: 0.75;
+                cursor: not-allowed;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -115,6 +142,62 @@
         return null;
     }
 
+    // Turn a date-like value (ISO string, epoch seconds/ms, Firestore timestamp) into epoch ms
+    function parseDateValue(v) {
+        if (v == null || v === '' || typeof v === 'boolean') return null;
+        if (typeof v === 'number') {
+            const ms = v < 1e12 ? v * 1000 : v;
+            return ms > 0 ? ms : null;
+        }
+        if (typeof v === 'string') {
+            if (/^\d{10,13}$/.test(v.trim())) return parseDateValue(Number(v));
+            const t = Date.parse(v);
+            return isNaN(t) ? null : t;
+        }
+        if (v instanceof Date) return isNaN(v.getTime()) ? null : v.getTime();
+        if (typeof v === 'object') {
+            const s = v.seconds ?? v._seconds;
+            if (typeof s === 'number') return s * 1000;
+        }
+        return null;
+    }
+
+    const DATE_KEYS = [
+        'date', 'noteDate', 'classDate', 'lectureDate', 'sessionDate', 'scheduledAt', 'scheduled_at',
+        'publishedAt', 'published_at', 'uploadedAt', 'uploaded_at', 'createdAt', 'created_at',
+        'updatedAt', 'updated_at',
+    ];
+
+    // Find the best date for a note: known keys first, then any date-ish key,
+    // then the upload timestamp the LMS puts at the start of the file name (e.g. 1786663546889_)
+    function getNoteDate(note, url) {
+        if (note && typeof note === 'object') {
+            for (const key of DATE_KEYS) {
+                const t = parseDateValue(note[key]);
+                if (t) return t;
+            }
+            for (const [key, val] of Object.entries(note)) {
+                if (/date|time|created|uploaded|published/i.test(key)) {
+                    const t = parseDateValue(val);
+                    if (t) return t;
+                }
+            }
+        }
+        return getUploadTime(url);
+    }
+
+    // Upload timestamp the LMS puts at the start of the file name (e.g. 1786663546889_)
+    function getUploadTime(url) {
+        if (!url) return null;
+        const name = decodeURIComponent(url.split('?')[0].split('#')[0].split('/').pop() || '');
+        const m = name.match(/^(\d{13})[_\-\s]/);
+        return m ? Number(m[1]) : null;
+    }
+
+    function sanitizeFilename(str) {
+        return (str || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
     function normalizeText(str) {
         return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     }
@@ -135,8 +218,8 @@
 
         // If not viewing any module notes (e.g. back to folder list), clean up the Download All button
         if (!cards.length) {
-            const existingAllBtn = document.getElementById('polaris-download-all-btn');
-            if (existingAllBtn) existingAllBtn.remove();
+            const existingActions = document.getElementById('polaris-bulk-actions');
+            if (existingActions) existingActions.remove();
             return;
         }
 
@@ -185,7 +268,9 @@
             currentModuleNotes.push({
                 url: fileUrl,
                 filename: filename,
-                title: titleText
+                title: titleText,
+                date: getNoteDate(matched.note, fileUrl),
+                uploadTime: getUploadTime(fileUrl)
             });
 
             // If this card already has the Download button, skip injecting again
@@ -233,67 +318,150 @@
         injectDownloadAllButton(currentModuleNotes);
     }
 
+    const DOWNLOAD_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>`;
+
+    const MERGE_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
+        </svg>`;
+
+    // Oldest first; notes without a date keep their list order and go last
+    function sortNotesByDate(notes) {
+        return notes
+            .map((note, index) => ({ note, index }))
+            .sort((a, b) => {
+                const da = a.note.date, db = b.note.date;
+                if (da != null && db != null && da !== db) return da - db;
+                if (da == null && db != null) return 1;
+                if (da != null && db == null) return -1;
+                // Same day (or no date): fall back to upload time from the file name
+                const ua = a.note.uploadTime, ub = b.note.uploadTime;
+                if (ua != null && ub != null && ua !== ub) return ua - ub;
+                return a.index - b.index;
+            })
+            .map((x) => x.note);
+    }
+
+    function getModuleName(headerContainer) {
+        const heading = headerContainer.querySelector('h1, h2, h3, h4');
+        const text = heading ? heading.textContent : '';
+        return sanitizeFilename(text) || 'Module Notes';
+    }
+
     function injectDownloadAllButton(currentModuleNotes) {
         const headerContainer = document.querySelector('.space-y-4 > .flex.items-center.justify-between');
         if (!headerContainer || !currentModuleNotes.length) {
-            const existing = document.getElementById('polaris-download-all-btn');
+            const existing = document.getElementById('polaris-bulk-actions');
             if (existing) existing.remove();
             return;
         }
 
         const count = currentModuleNotes.length;
-        let allBtn = document.getElementById('polaris-download-all-btn');
+        let wrapper = document.getElementById('polaris-bulk-actions');
 
-        // If the button exists and matches the current module count and cards, keep it
-        if (allBtn) {
-            if (allBtn.dataset.count === String(count)) {
-                return;
-            }
-            // If the module changed (e.g. from Module 1 [7 notes] to Module 2 [5 notes]), replace it
-            allBtn.remove();
+        // If the buttons already match the current module, just refresh the note list they use
+        if (wrapper && wrapper.dataset.count === String(count)) {
+            wrapper._notes = currentModuleNotes;
+            return;
         }
+        // Module changed (e.g. Module 1 [7 notes] -> Module 2 [5 notes]): rebuild
+        if (wrapper) wrapper.remove();
 
-        allBtn = document.createElement('button');
+        wrapper = document.createElement('div');
+        wrapper.id = 'polaris-bulk-actions';
+        wrapper.style.display = 'inline-flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.dataset.count = String(count);
+        wrapper._notes = currentModuleNotes;
+
+        // --- Download All: saves each PDF separately ---
+        const allBtn = document.createElement('button');
         allBtn.id = 'polaris-download-all-btn';
         allBtn.type = 'button';
-        allBtn.dataset.count = String(count);
-        allBtn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            <span>Download All (${count})</span>
-        `;
+        const allBtnHtml = `${DOWNLOAD_ICON}<span>Download All (${count})</span>`;
+        allBtn.innerHTML = allBtnHtml;
 
         allBtn.addEventListener('click', async () => {
+            const notes = wrapper._notes;
             allBtn.disabled = true;
-            for (let i = 0; i < currentModuleNotes.length; i++) {
-                allBtn.innerText = `Downloading ${i + 1} of ${count}...`;
+            for (let i = 0; i < notes.length; i++) {
+                allBtn.innerText = `Downloading ${i + 1} of ${notes.length}...`;
                 window.postMessage({
                     source: 'POLARIS_DOWNLOADER',
                     action: 'download',
-                    url: currentModuleNotes[i].url,
-                    filename: currentModuleNotes[i].filename
+                    url: notes[i].url,
+                    filename: notes[i].filename
                 }, '*');
                 await new Promise(r => setTimeout(r, 400));
             }
 
             allBtn.innerText = 'All Downloaded!';
             setTimeout(() => {
-                allBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    <span>Download All (${count})</span>
-                `;
+                allBtn.innerHTML = allBtnHtml;
                 allBtn.disabled = false;
             }, 2500);
         });
 
-        headerContainer.appendChild(allBtn);
+        // --- Merge All: one PDF with every note, ordered by date ---
+        const mergeBtn = document.createElement('button');
+        mergeBtn.id = 'polaris-merge-all-btn';
+        mergeBtn.type = 'button';
+        mergeBtn.title = 'Combine all notes into one PDF, ordered by date (oldest first)';
+        const mergeBtnHtml = `${MERGE_ICON}<span>Merge All by Date (${count})</span>`;
+        mergeBtn.innerHTML = mergeBtnHtml;
+
+        mergeBtn.addEventListener('click', () => {
+            const sorted = sortNotesByDate(wrapper._notes);
+            const filename = `${getModuleName(headerContainer)} - Merged.pdf`;
+
+            mergeBtn.disabled = true;
+            mergeBtn.innerText = 'Starting merge...';
+
+            const onMessage = (event) => {
+                if (event.source !== window || !event.data || event.data.source !== 'POLARIS_DOWNLOADER_EXT') return;
+                if (event.data.type === 'merge-progress') {
+                    mergeBtn.innerText = event.data.text;
+                    return;
+                }
+                if (event.data.type !== 'merge-result') return;
+
+                window.removeEventListener('message', onMessage);
+                const result = event.data.result || {};
+                if (!result.success) {
+                    console.error('[Polaris Downloader] Merge failed:', result.error, result.failed);
+                    mergeBtn.innerText = 'Merge Failed';
+                } else if (result.failed && result.failed.length) {
+                    console.warn('[Polaris Downloader] Skipped notes:', result.failed);
+                    mergeBtn.innerText = `Merged (${result.failed.length} skipped)`;
+                } else {
+                    mergeBtn.innerText = 'Merged!';
+                }
+                setTimeout(() => {
+                    mergeBtn.innerHTML = mergeBtnHtml;
+                    mergeBtn.disabled = false;
+                }, 3000);
+            };
+            window.addEventListener('message', onMessage);
+
+            window.postMessage({
+                source: 'POLARIS_DOWNLOADER',
+                action: 'merge',
+                filename,
+                notes: sorted.map(({ url, filename, title }) => ({ url, filename, title }))
+            }, '*');
+        });
+
+        wrapper.appendChild(allBtn);
+        wrapper.appendChild(mergeBtn);
+        headerContainer.appendChild(wrapper);
     }
 
     let debounceTimer = null;
