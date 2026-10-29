@@ -135,13 +135,14 @@ window.addEventListener('message', (event) => {
     if (event.data.action === 'merge') {
         chrome.runtime.sendMessage({
             action: 'merge',
+            jobId: event.data.jobId,
             notes: event.data.notes,
             filename: event.data.filename
         }, (response) => {
             const result = chrome.runtime.lastError
                 ? { success: false, error: chrome.runtime.lastError.message }
                 : (response || { success: false, error: 'No response' });
-            window.postMessage({ source: 'POLARIS_DOWNLOADER_EXT', type: 'merge-result', result }, '*');
+            window.postMessage({ source: 'POLARIS_DOWNLOADER_EXT', type: 'merge-result', jobId: event.data.jobId, result }, '*');
         });
     }
 });
@@ -149,6 +150,6 @@ window.addEventListener('message', (event) => {
 // Forward merge progress from the extension back to the page button
 chrome.runtime.onMessage.addListener((message) => {
     if (message.action === 'merge-progress') {
-        window.postMessage({ source: 'POLARIS_DOWNLOADER_EXT', type: 'merge-progress', text: message.text }, '*');
+        window.postMessage({ source: 'POLARIS_DOWNLOADER_EXT', type: 'merge-progress', jobId: message.jobId, text: message.text }, '*');
     }
 });

@@ -142,22 +142,33 @@
         return null;
     }
 
-    // Turn a date-like value (ISO string, epoch seconds/ms, Firestore timestamp) into epoch ms
+    // Turn a date-like value (ISO string, DD/MM/YYYY, epoch seconds/ms, Firestore timestamp) into epoch ms
     function parseDateValue(v) {
         if (v == null || v === '' || typeof v === 'boolean') return null;
         if (typeof v === 'number') {
+            if (!Number.isFinite(v)) return null;
             const ms = v < 1e12 ? v * 1000 : v;
             return ms > 0 ? ms : null;
         }
         if (typeof v === 'string') {
-            if (/^\d{10,13}$/.test(v.trim())) return parseDateValue(Number(v));
-            const t = Date.parse(v);
-            return isNaN(t) ? null : t;
+            const trimmed = v.trim();
+            if (/^\d{10,13}$/.test(trimmed)) return parseDateValue(Number(trimmed));
+            
+            // Support DD/MM/YYYY or DD-MM-YYYY formats commonly used in LMS portals
+            const dmy = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(.*)$/);
+            if (dmy) {
+                const iso = `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}${dmy[4]}`;
+                const parsed = Date.parse(iso);
+                if (Number.isFinite(parsed)) return parsed;
+            }
+
+            const t = Date.parse(trimmed);
+            return Number.isFinite(t) ? t : null;
         }
-        if (v instanceof Date) return isNaN(v.getTime()) ? null : v.getTime();
+        if (v instanceof Date) return Number.isFinite(v.getTime()) ? v.getTime() : null;
         if (typeof v === 'object') {
             const s = v.seconds ?? v._seconds;
-            if (typeof s === 'number') return s * 1000;
+            if (typeof s === 'number' && Number.isFinite(s)) return s * 1000;
         }
         return null;
     }
@@ -344,7 +355,9 @@
                 if (da != null && db == null) return -1;
                 // Same day (or no date): fall back to upload time from the file name
                 const ua = a.note.uploadTime, ub = b.note.uploadTime;
-                if (ua != null && ub != null && ua !== ub) return ua - ub;
+                if (ua == null && ub != null) return 1;
+                if (ua != null && ub == null) return -1;
+                if (ua != null && ua !== ub) return ua - ub;
                 return a.index - b.index;
             })
             .map((x) => x.note);
@@ -355,6 +368,57 @@
         const text = heading ? heading.textContent : '';
         return sanitizeFilename(text) || 'Module Notes';
     }
+
+    // Keep active merge state outside the DOM so re-renders don't lose status or cause duplicate merges
+    const activeMerge = {
+        jobId: null,
+        statusText: null,
+        inProgress: false
+    };
+
+    window.addEventListener('message', (event) => {
+        if (event.source !== window || !event.data || event.data.source !== 'POLARIS_DOWNLOADER_EXT') return;
+
+        if (event.data.type === 'merge-progress') {
+            if (event.data.jobId && activeMerge.jobId && event.data.jobId !== activeMerge.jobId) return;
+            activeMerge.statusText = event.data.text;
+            const btn = document.getElementById('polaris-merge-all-btn');
+            if (btn) btn.innerText = event.data.text;
+            return;
+        }
+
+        if (event.data.type === 'merge-result') {
+            if (event.data.jobId && activeMerge.jobId && event.data.jobId !== activeMerge.jobId) return;
+            const result = event.data.result || {};
+            let statusText = 'Merged!';
+            if (!result.success) {
+                console.error('[Polaris Downloader] Merge failed:', result.error, result.failed);
+                statusText = 'Merge Failed';
+            } else if (result.failed && result.failed.length) {
+                console.warn('[Polaris Downloader] Skipped notes:', result.failed);
+                statusText = `Merged (${result.failed.length} skipped)`;
+            }
+
+            activeMerge.inProgress = false;
+            activeMerge.jobId = null;
+            activeMerge.statusText = statusText;
+
+            const btn = document.getElementById('polaris-merge-all-btn');
+            if (btn) {
+                btn.innerText = statusText;
+                setTimeout(() => {
+                    activeMerge.statusText = null;
+                    const currentBtn = document.getElementById('polaris-merge-all-btn');
+                    const wrapper = document.getElementById('polaris-bulk-actions');
+                    const count = (wrapper && wrapper.dataset.count) || '';
+                    if (currentBtn && !activeMerge.inProgress) {
+                        currentBtn.innerHTML = `${MERGE_ICON}<span>Merge All by Date (${count})</span>`;
+                        currentBtn.disabled = false;
+                    }
+                }, 3000);
+            }
+        }
+    });
 
     function injectDownloadAllButton(currentModuleNotes) {
         const headerContainer = document.querySelector('.space-y-4 > .flex.items-center.justify-between');
@@ -418,42 +482,32 @@
         const mergeBtnHtml = `${MERGE_ICON}<span>Merge All by Date (${count})</span>`;
         mergeBtn.innerHTML = mergeBtnHtml;
 
+        // Reflect current merge status if this button was re-rendered mid-merge
+        if (activeMerge.inProgress) {
+            mergeBtn.disabled = true;
+            mergeBtn.innerText = activeMerge.statusText || 'Merging...';
+        } else if (activeMerge.statusText) {
+            mergeBtn.disabled = true;
+            mergeBtn.innerText = activeMerge.statusText;
+        }
+
         mergeBtn.addEventListener('click', () => {
+            if (activeMerge.inProgress) return;
             const sorted = sortNotesByDate(wrapper._notes);
             const filename = `${getModuleName(headerContainer)} - Merged.pdf`;
+            const jobId = String(Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
+
+            activeMerge.inProgress = true;
+            activeMerge.jobId = jobId;
+            activeMerge.statusText = 'Starting merge...';
 
             mergeBtn.disabled = true;
-            mergeBtn.innerText = 'Starting merge...';
-
-            const onMessage = (event) => {
-                if (event.source !== window || !event.data || event.data.source !== 'POLARIS_DOWNLOADER_EXT') return;
-                if (event.data.type === 'merge-progress') {
-                    mergeBtn.innerText = event.data.text;
-                    return;
-                }
-                if (event.data.type !== 'merge-result') return;
-
-                window.removeEventListener('message', onMessage);
-                const result = event.data.result || {};
-                if (!result.success) {
-                    console.error('[Polaris Downloader] Merge failed:', result.error, result.failed);
-                    mergeBtn.innerText = 'Merge Failed';
-                } else if (result.failed && result.failed.length) {
-                    console.warn('[Polaris Downloader] Skipped notes:', result.failed);
-                    mergeBtn.innerText = `Merged (${result.failed.length} skipped)`;
-                } else {
-                    mergeBtn.innerText = 'Merged!';
-                }
-                setTimeout(() => {
-                    mergeBtn.innerHTML = mergeBtnHtml;
-                    mergeBtn.disabled = false;
-                }, 3000);
-            };
-            window.addEventListener('message', onMessage);
+            mergeBtn.innerText = activeMerge.statusText;
 
             window.postMessage({
                 source: 'POLARIS_DOWNLOADER',
                 action: 'merge',
+                jobId,
                 filename,
                 notes: sorted.map(({ url, filename, title }) => ({ url, filename, title }))
             }, '*');
