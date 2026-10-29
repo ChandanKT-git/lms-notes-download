@@ -5,7 +5,7 @@ A lightweight Chrome Extension that adds native download capabilities directly t
 ## Features
 - **Direct List Downloads**: Download any note directly from the module list with a single click—no need to open each note one by one.
 - **Bulk "Download All"**: Download every note in the active module sequentially with a single click.
-- **"Merge All by Date"**: Combine every note in the module into a single PDF, ordered by date (oldest first).
+- **"Merge All by Date"**: Combine the module's notes into a single PDF, ordered by date (oldest first). Any notes that fail to download are safely skipped.
 - **Smart Filenames**: Automatically strips out messy system IDs/timestamps (e.g. `1786663546889_`) so your downloaded notes are clean and readable.
 - **Viewer Integration**: Retains the floating one-click download button when viewing individual PDFs directly inside the LMS viewer.
 - **Clean UI**: Seamlessly integrates into the Polaris LMS with native brand-matched styling and dark mode support.
@@ -55,5 +55,5 @@ This extension is shared directly via GitHub. You can easily install it on your 
 **That's it!** The extension is now active. Navigate to any subject or module on Polaris LMS:
 - Click **Download** next to any note card to save it instantly.
 - Or click **Download All (X)** at the top header to download all module notes at once.
-- Or click **Merge All by Date (X)** to get one PDF with all the module's notes, oldest first.
+- Or click **Merge All by Date (X)** to get one PDF with the module's notes that download successfully, oldest first.
 - Opening an individual PDF will also show the floating **Download PDF** button at the bottom right.

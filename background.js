@@ -21,7 +21,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.action === "merge") {
         const tabId = sender.tab && sender.tab.id;
-        mergeAndDownload(message.notes, message.filename, tabId)
+        mergeAndDownload(message.notes, message.filename, tabId, message.jobId)
             .then(sendResponse)
             .catch((e) => sendResponse({ success: false, error: e.message }));
         return true;
@@ -29,17 +29,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // Progress updates from the offscreen page, forwarded to the tab that asked for the merge
     if (message.action === "merge-progress" && message.tabId != null) {
-        chrome.tabs.sendMessage(message.tabId, { action: "merge-progress", text: message.text }).catch(() => { });
+        chrome.tabs.sendMessage(message.tabId, { action: "merge-progress", jobId: message.jobId, text: message.text }).catch(() => { });
     }
 });
 
 // --- Offscreen document management ---
 
 let creatingOffscreen = null;
+let closingOffscreen = null;
 let activeMerges = 0;
 const pendingMergeDownloads = new Set();
 
 async function ensureOffscreen() {
+    if (closingOffscreen) await closingOffscreen;
     if (await chrome.offscreen.hasDocument()) return;
     if (!creatingOffscreen) {
         creatingOffscreen = chrome.offscreen.createDocument({
@@ -53,12 +55,16 @@ async function ensureOffscreen() {
 
 async function closeOffscreenIfIdle() {
     if (activeMerges > 0 || pendingMergeDownloads.size > 0) return;
-    if (await chrome.offscreen.hasDocument()) {
-        await chrome.offscreen.closeDocument();
-    }
+    if (closingOffscreen) return closingOffscreen;
+    closingOffscreen = (async () => {
+        if (await chrome.offscreen.hasDocument()) {
+            await chrome.offscreen.closeDocument();
+        }
+    })().finally(() => { closingOffscreen = null; });
+    await closingOffscreen;
 }
 
-async function mergeAndDownload(notes, filename, tabId) {
+async function mergeAndDownload(notes, filename, tabId, jobId) {
     activeMerges++;
     try {
         await ensureOffscreen();
@@ -67,6 +73,7 @@ async function mergeAndDownload(notes, filename, tabId) {
             action: 'merge',
             notes,
             tabId,
+            jobId,
         });
         if (!result || !result.success) return result || { success: false, error: 'Merge failed' };
 
